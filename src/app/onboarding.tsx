@@ -1,4 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -37,21 +38,30 @@ export default function OnboardingScreen() {
   const page = pages[step];
   return (
     <View style={styles.screen}>
-      <View style={[styles.illustration, { backgroundColor: page.color }]}>
-        <View style={styles.artHalo} />
-        <MaterialCommunityIcons
-          name={page.icon as keyof typeof MaterialCommunityIcons.glyphMap}
-          size={82}
-          color={colors.green}
+      {step === 0 ? (
+        <Image
+          source={require("../../assets/images/onboarding/Focused Productivity_ Laptop and Task Board.png")}
+          contentFit="contain"
+          accessibilityLabel="A person building better habits with a checklist"
+          style={styles.heroImage}
         />
-        <View style={styles.artSparkle}>
+      ) : (
+        <View style={[styles.illustration, { backgroundColor: page.color }]}>
+          <View style={styles.artHalo} />
           <MaterialCommunityIcons
-            name="star-four-points"
-            size={26}
-            color="#42CFA4"
+            name={page.icon as keyof typeof MaterialCommunityIcons.glyphMap}
+            size={82}
+            color={colors.green}
           />
+          <View style={styles.artSparkle}>
+            <MaterialCommunityIcons
+              name="star-four-points"
+              size={26}
+              color="#42CFA4"
+            />
+          </View>
         </View>
-      </View>
+      )}
       <View style={styles.copy}>
         <Text style={styles.title}>{page.title}</Text>
         <Text style={styles.body}>{page.body}</Text>
@@ -98,6 +108,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     overflow: "hidden",
   },
+  heroImage: { width: "100%", maxWidth: 340, height: 300 },
   artHalo: {
     width: 146,
     height: 146,
