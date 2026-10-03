@@ -2,7 +2,13 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import { AppButton } from "../components/ui";
 import { useHabits } from "../data/habits";
 import { colors, radius } from "../theme";
@@ -31,6 +37,7 @@ const pages = [
 export default function OnboardingScreen() {
   const [step, setStep] = useState(0);
   const { setOnboardingComplete } = useHabits();
+  const { height } = useWindowDimensions();
   const finish = () => {
     setOnboardingComplete();
     router.replace("/(tabs)");
@@ -43,7 +50,10 @@ export default function OnboardingScreen() {
           source={require("../../assets/images/onboarding/Focused Productivity_ Laptop and Task Board.png")}
           contentFit="contain"
           accessibilityLabel="A person building better habits with a checklist"
-          style={styles.heroImage}
+          style={[
+            styles.heroImage,
+            { height: Math.min(300, Math.max(165, height * 0.34)) },
+          ]}
         />
       ) : (
         <View style={[styles.illustration, { backgroundColor: page.color }]}>
@@ -108,7 +118,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     overflow: "hidden",
   },
-  heroImage: { width: "100%", maxWidth: 340, height: 300 },
+  heroImage: { width: "100%", maxWidth: 340 },
   artHalo: {
     width: 146,
     height: 146,
