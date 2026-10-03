@@ -148,12 +148,18 @@ export function ProgressRing({
   size = 92,
   color = colors.green,
   label,
+  trackColor = "#E4ECEB",
+  textColor = colors.ink,
+  labelColor = colors.muted,
 }: {
   value: number;
   total: number;
   size?: number;
   color?: string;
   label?: string;
+  trackColor?: string;
+  textColor?: string;
+  labelColor?: string;
 }) {
   const strokeWidth = 8;
   const radiusValue = (size - strokeWidth) / 2;
@@ -177,7 +183,7 @@ export function ProgressRing({
           cx={size / 2}
           cy={size / 2}
           r={radiusValue}
-          stroke="#E4ECEB"
+          stroke={trackColor}
           strokeWidth={strokeWidth}
           fill="none"
         />
@@ -193,10 +199,12 @@ export function ProgressRing({
           fill="none"
         />
       </Svg>
-      <Text style={styles.ringValue}>
+      <Text style={[styles.ringValue, { color: textColor }]}>
         {value}/{total}
       </Text>
-      {label ? <Text style={styles.ringLabel}>{label}</Text> : null}
+      {label ? (
+        <Text style={[styles.ringLabel, { color: labelColor }]}>{label}</Text>
+      ) : null}
     </View>
   );
 }
