@@ -1,5 +1,13 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 export type Habit = {
   id: string;
@@ -9,6 +17,7 @@ export type Habit = {
   target: number;
   unit: string;
   frequency: "Daily" | "Weekly" | "Custom";
+  customDays?: number[];
   reminder?: string;
 };
 export type Completion = { habitId: string; date: string; count: number };
@@ -18,16 +27,22 @@ export type AppData = {
   completions: Completion[];
   appearance: "Light" | "Dark";
   notifications: boolean;
+  profileName: string;
 };
 type NewHabit = Omit<Habit, "id">;
 type HabitContextValue = {
   data: AppData;
   loaded: boolean;
+  storageError: boolean;
   addHabit: (habit: NewHabit) => void;
+  updateHabit: (habitId: string, updates: NewHabit) => void;
+  deleteHabit: (habitId: string) => void;
   logHabit: (habitId: string, amount?: number) => void;
   setOnboardingComplete: () => void;
   setAppearance: (appearance: AppData["appearance"]) => void;
   setNotifications: (enabled: boolean) => void;
+  setProfileName: (name: string) => void;
+  resetLocalData: () => void;
   getCount: (habitId: string, date?: string) => number;
 };
 
@@ -87,38 +102,91 @@ const starterHabits: Habit[] = [
   },
 ];
 
-const initialData: AppData = {
-  onboardingComplete: false,
-  habits: starterHabits,
-  completions: [
-    { habitId: "water", date: today(), count: 5 },
-    { habitId: "reading", date: today(), count: 20 },
-    { habitId: "water", date: shiftDate(-1), count: 8 },
-    { habitId: "reading", date: shiftDate(-1), count: 20 },
-    { habitId: "workout", date: shiftDate(-1), count: 1 },
-  ],
-  appearance: "Light",
-  notifications: true,
-};
+function makeInitialData(): AppData {
+  return {
+    onboardingComplete: false,
+    habits: starterHabits,
+    completions: [
+      { habitId: "water", date: today(), count: 5 },
+      { habitId: "reading", date: today(), count: 20 },
+      { habitId: "water", date: shiftDate(-1), count: 8 },
+      { habitId: "reading", date: shiftDate(-1), count: 20 },
+      { habitId: "workout", date: shiftDate(-1), count: 1 },
+    ],
+    appearance: "Light",
+    notifications: true,
+    profileName: "Praise Masunga",
+  };
+}
+
+function normalizeData(value: unknown): AppData {
+  const defaults = makeInitialData();
+  if (!value || typeof value !== "object") return defaults;
+  const saved = value as Partial<AppData>;
+  const habits = Array.isArray(saved.habits)
+    ? saved.habits.filter(
+        (item): item is Habit =>
+          !!item &&
+          typeof item.id === "string" &&
+          typeof item.name === "string" &&
+          typeof item.icon === "string" &&
+          typeof item.color === "string" &&
+          Number.isFinite(item.target) &&
+          item.target > 0 &&
+          typeof item.unit === "string" &&
+          ["Daily", "Weekly", "Custom"].includes(item.frequency),
+      )
+    : defaults.habits;
+  const completions = Array.isArray(saved.completions)
+    ? saved.completions.filter(
+        (entry): entry is Completion =>
+          !!entry &&
+          typeof entry.habitId === "string" &&
+          typeof entry.date === "string" &&
+          Number.isFinite(entry.count) &&
+          entry.count >= 0,
+      )
+    : saved.habits
+      ? []
+      : defaults.completions;
+  return {
+    ...defaults,
+    ...saved,
+    habits,
+    completions,
+    onboardingComplete: saved.onboardingComplete === true,
+    appearance: saved.appearance === "Dark" ? "Dark" : "Light",
+    notifications: saved.notifications !== false,
+    profileName:
+      typeof saved.profileName === "string" && saved.profileName.trim()
+        ? saved.profileName.trim()
+        : defaults.profileName,
+  };
+}
 
 const HabitContext = createContext<HabitContextValue | null>(null);
 
 export function HabitProvider({ children }: React.PropsWithChildren) {
-  const [data, setData] = useState<AppData>(initialData);
+  const [data, setData] = useState<AppData>(makeInitialData);
   const [loaded, setLoaded] = useState(false);
+  const [storageError, setStorageError] = useState(false);
+  const writeQueue = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     let mounted = true;
     AsyncStorage.getItem(STORAGE_KEY)
       .then((stored) => {
-        if (!mounted) return;
-        if (stored)
-          setData({
-            ...initialData,
-            ...(JSON.parse(stored) as Partial<AppData>),
-          });
+        if (mounted && stored) {
+          try {
+            setData(normalizeData(JSON.parse(stored)));
+          } catch {
+            setStorageError(true);
+          }
+        }
       })
-      .catch(() => undefined)
+      .catch(() => {
+        if (mounted) setStorageError(true);
+      })
       .finally(() => {
         if (mounted) setLoaded(true);
       });
@@ -128,66 +196,114 @@ export function HabitProvider({ children }: React.PropsWithChildren) {
   }, []);
 
   useEffect(() => {
-    if (loaded)
-      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data)).catch(
-        () => undefined,
-      );
+    if (!loaded) return;
+    const serialized = JSON.stringify(data);
+    writeQueue.current = writeQueue.current
+      .catch(() => undefined)
+      .then(() => AsyncStorage.setItem(STORAGE_KEY, serialized))
+      .then(() => setStorageError(false))
+      .catch(() => setStorageError(true));
   }, [data, loaded]);
 
-  const update = (transform: (current: AppData) => AppData) =>
-    setData((current) => transform(current));
-  const addHabit = (habit: NewHabit) =>
-    update((current) => ({
+  const addHabit = useCallback((habit: NewHabit) => {
+    setData((current) => ({
       ...current,
-      habits: [{ ...habit, id: `habit-${Date.now()}` }, ...current.habits],
+      habits: [{ ...habit, id: `habit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` }, ...current.habits],
     }));
-  const logHabit = (habitId: string, amount = 1) =>
-    update((current) => {
-      const date = today();
+  }, []);
+  const updateHabit = useCallback((habitId: string, updates: NewHabit) => {
+    setData((current) => ({
+      ...current,
+      habits: current.habits.map((habit) =>
+        habit.id === habitId ? { ...updates, id: habit.id } : habit,
+      ),
+    }));
+  }, []);
+  const deleteHabit = useCallback((habitId: string) => {
+    setData((current) => ({
+      ...current,
+      habits: current.habits.filter((habit) => habit.id !== habitId),
+      completions: current.completions.filter(
+        (completion) => completion.habitId !== habitId,
+      ),
+    }));
+  }, []);
+  const logHabit = useCallback((habitId: string, amount = 1) => {
+    setData((current) => {
       const habit = current.habits.find((item) => item.id === habitId);
-      if (!habit) return current;
-      const completions = [...current.completions];
-      const index = completions.findIndex(
+      if (!habit || !Number.isFinite(amount) || amount === 0) return current;
+      const date = today();
+      const index = current.completions.findIndex(
         (entry) => entry.habitId === habitId && entry.date === date,
       );
-      const existing = index >= 0 ? completions[index].count : 0;
+      const existing = index >= 0 ? current.completions[index].count : 0;
       const count =
         habit.target === 1
-          ? existing >= 1
+          ? amount < 0 || existing >= 1
             ? 0
             : 1
-          : Math.min(habit.target, existing + amount);
+          : Math.max(0, Math.min(habit.target, existing + amount));
+      const completions = [...current.completions];
       if (index >= 0) completions[index] = { ...completions[index], count };
-      else completions.push({ habitId, date, count });
+      else if (count > 0) completions.push({ habitId, date, count });
       return { ...current, completions };
     });
-  const setOnboardingComplete = () =>
-    update((current) => ({ ...current, onboardingComplete: true }));
-  const setAppearance = (appearance: AppData["appearance"]) =>
-    update((current) => ({ ...current, appearance }));
-  const setNotifications = (notifications: boolean) =>
-    update((current) => ({ ...current, notifications }));
-  const getCount = (habitId: string, date = today()) =>
-    data.completions.find(
-      (entry) => entry.habitId === habitId && entry.date === date,
-    )?.count ?? 0;
-
-  return (
-    <HabitContext.Provider
-      value={{
-        data,
-        loaded,
-        addHabit,
-        logHabit,
-        setOnboardingComplete,
-        setAppearance,
-        setNotifications,
-        getCount,
-      }}
-    >
-      {children}
-    </HabitContext.Provider>
+  }, []);
+  const setOnboardingComplete = useCallback(() => {
+    setData((current) => ({ ...current, onboardingComplete: true }));
+  }, []);
+  const setAppearance = useCallback((appearance: AppData["appearance"]) => {
+    setData((current) => ({ ...current, appearance }));
+  }, []);
+  const setNotifications = useCallback((notifications: boolean) => {
+    setData((current) => ({ ...current, notifications }));
+  }, []);
+  const setProfileName = useCallback((profileName: string) => {
+    setData((current) => ({ ...current, profileName: profileName.trim() }));
+  }, []);
+  const resetLocalData = useCallback(() => setData(makeInitialData()), []);
+  const getCount = useCallback(
+    (habitId: string, date = today()) =>
+      data.completions.find(
+        (entry) => entry.habitId === habitId && entry.date === date,
+      )?.count ?? 0,
+    [data.completions],
   );
+
+  const value = useMemo(
+    () => ({
+      data,
+      loaded,
+      storageError,
+      addHabit,
+      updateHabit,
+      deleteHabit,
+      logHabit,
+      setOnboardingComplete,
+      setAppearance,
+      setNotifications,
+      setProfileName,
+      resetLocalData,
+      getCount,
+    }),
+    [
+      data,
+      loaded,
+      storageError,
+      addHabit,
+      updateHabit,
+      deleteHabit,
+      logHabit,
+      setOnboardingComplete,
+      setAppearance,
+      setNotifications,
+      setProfileName,
+      resetLocalData,
+      getCount,
+    ],
+  );
+
+  return <HabitContext.Provider value={value}>{children}</HabitContext.Provider>;
 }
 
 export function useHabits() {

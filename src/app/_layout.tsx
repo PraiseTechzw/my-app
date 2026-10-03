@@ -22,6 +22,7 @@ export default function RootLayout() {
         <Stack.Screen name="settings" />
         <Stack.Screen name="goals" />
         <Stack.Screen name="info" />
+        <Stack.Screen name="profile-edit" options={{ presentation: "modal" }} />
       </Stack>
     </HabitProvider>
   );

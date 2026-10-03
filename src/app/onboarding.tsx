@@ -11,26 +11,23 @@ import {
 } from "react-native";
 import { AppButton } from "../components/ui";
 import { useHabits } from "../data/habits";
-import { colors, radius } from "../theme";
+import { colors } from "../theme";
 
 const pages = [
   {
-    icon: "chart-timeline-variant",
+    image: require("../../assets/images/onboarding/Focused Productivity_ Laptop and Task Board.png"),
     title: "Build Better Habits",
     body: "Stay consistent, track your progress, and achieve your goals — one step at a time.",
-    color: colors.mint,
   },
   {
-    icon: "target",
+    image: require("../../assets/images/onboarding/set-goals.png"),
     title: "Set Your Goals",
-    body: "Whether it's reading, working out, or learning something new — we've got you covered.",
-    color: "#E4F8EF",
+    body: "Whether it’s reading, working out, or learning something new — we’ve got you covered.",
   },
   {
-    icon: "clipboard-check-outline",
+    image: require("../../assets/images/onboarding/track-grow.png"),
     title: "Track & Grow",
     body: "See your progress, stay motivated, and build the life you want.",
-    color: colors.blue,
   },
 ];
 
@@ -45,39 +42,27 @@ export default function OnboardingScreen() {
   const page = pages[step];
   return (
     <View style={styles.screen}>
-      {step === 0 ? (
-        <Image
-          source={require("../../assets/images/onboarding/Focused Productivity_ Laptop and Task Board.png")}
-          contentFit="contain"
-          accessibilityLabel="A person building better habits with a checklist"
-          style={[
-            styles.heroImage,
-            { height: Math.min(300, Math.max(165, height * 0.34)) },
-          ]}
-        />
-      ) : (
-        <View style={[styles.illustration, { backgroundColor: page.color }]}>
-          <View style={styles.artHalo} />
-          <MaterialCommunityIcons
-            name={page.icon as keyof typeof MaterialCommunityIcons.glyphMap}
-            size={82}
-            color={colors.green}
-          />
-          <View style={styles.artSparkle}>
-            <MaterialCommunityIcons
-              name="star-four-points"
-              size={26}
-              color="#42CFA4"
-            />
-          </View>
+      <View style={styles.brandRow}>
+        <View style={styles.brandMark}>
+          <MaterialCommunityIcons name="leaf" size={24} color={colors.white} />
         </View>
-      )}
+        <Text style={styles.brandName}>FocusFlow</Text>
+        <Text style={styles.tagline}>Small steps. Big changes.</Text>
+      </View>
+      <Image
+        key={step}
+        source={page.image}
+        contentFit="contain"
+        accessibilityLabel={page.title}
+        transition={180}
+        style={[styles.heroImage, { height: Math.min(320, Math.max(195, height * 0.39)) }]}
+      />
       <View style={styles.copy}>
         <Text style={styles.title}>{page.title}</Text>
         <Text style={styles.body}>{page.body}</Text>
       </View>
       <View style={styles.footer}>
-        <View style={styles.dots}>
+        <View style={styles.dots} accessibilityLabel={`Page ${step + 1} of 3`}>
           {pages.map((item, index) => (
             <View
               key={item.title}
@@ -86,14 +71,14 @@ export default function OnboardingScreen() {
           ))}
         </View>
         <AppButton
-          title={step === 2 ? "Get Started" : "Next"}
-          onPress={
-            step === 2 ? finish : () => setStep((current) => current + 1)
-          }
+          title={step === pages.length - 1 ? "Get Started" : "Next"}
+          onPress={step === pages.length - 1 ? finish : () => setStep((value) => value + 1)}
         />
-        <Pressable onPress={finish} hitSlop={12}>
-          <Text style={styles.skip}>Skip</Text>
-        </Pressable>
+        {step < pages.length - 1 ? (
+          <Pressable onPress={finish} hitSlop={12} accessibilityRole="button">
+            <Text style={styles.skip}>Skip</Text>
+          </Pressable>
+        ) : <View style={styles.skipSpacer} />}
       </View>
     </View>
   );
@@ -106,28 +91,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 26,
-    paddingTop: 38,
+    paddingTop: 24,
     paddingBottom: 18,
   },
-  illustration: {
-    width: "100%",
-    maxWidth: 300,
-    height: 228,
-    borderRadius: radius.large,
+  brandRow: { alignItems: "center", gap: 4 },
+  brandMark: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    backgroundColor: colors.green,
     alignItems: "center",
     justifyContent: "center",
-    overflow: "hidden",
+    marginBottom: 3,
   },
-  heroImage: { width: "100%", maxWidth: 340 },
-  artHalo: {
-    width: 146,
-    height: 146,
-    borderRadius: 73,
-    position: "absolute",
-    backgroundColor: "#FFFFFFAA",
-  },
-  artSparkle: { position: "absolute", top: 33, right: 42 },
-  copy: { alignItems: "center", gap: 10, minHeight: 84, maxWidth: 300 },
+  brandName: { color: colors.ink, fontSize: 17, fontWeight: "800" },
+  tagline: { color: colors.muted, fontSize: 10 },
+  heroImage: { width: "100%", maxWidth: 350 },
+  copy: { alignItems: "center", gap: 10, minHeight: 90, maxWidth: 310 },
   title: {
     color: colors.ink,
     fontSize: 22,
@@ -141,19 +121,9 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   footer: { width: "100%", maxWidth: 340, gap: 12, paddingBottom: 6 },
-  dots: {
-    flexDirection: "row",
-    gap: 7,
-    justifyContent: "center",
-    marginBottom: 5,
-  },
+  dots: { flexDirection: "row", gap: 7, justifyContent: "center", marginBottom: 5 },
   dot: { width: 6, height: 6, borderRadius: 4, backgroundColor: "#D4DEDF" },
   dotActive: { width: 18, backgroundColor: colors.green },
-  skip: {
-    color: colors.green,
-    fontSize: 12,
-    fontWeight: "700",
-    textAlign: "center",
-    paddingVertical: 5,
-  },
+  skip: { color: colors.green, fontSize: 12, fontWeight: "700", textAlign: "center", paddingVertical: 5 },
+  skipSpacer: { height: 23 },
 });
